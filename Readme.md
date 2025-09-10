@@ -39,8 +39,7 @@ Originally deployed at **VIT-AP University**, this platform is accessible to use
 ---
 
 🔧 Installation & Setup
-1. Clone the Repository
-git clone https://github.com/YOUR_USERNAME/CampusQuery-AI.git
+1. Clone the Repository, then
 cd CampusQuery-AI
 
 2. Create Virtual Environment
