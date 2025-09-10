@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusQuery Enhanced - University Information Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Welcome Section -->
+        <div class="glass welcome fade-in">
+            <h1>🎓 CampusQuery Enhanced</h1>
+            <p>Your AI-powered university information assistant with advanced PDF interaction and web search</p>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid fade-in delay-1">
+            <div class="stat-card">
+                <h2>🔍</h2>
+                <p><strong>Smart Search</strong><br>Vector search + Web fallback</p>
+            </div>
+            <div class="stat-card">
+                <h2>📄</h2>
+                <p><strong>PDF Interaction</strong><br>Search, highlight, ask follow-ups</p>
+            </div>
+            <div class="stat-card">
+                <h2>🤖</h2>
+                <p><strong>AI Assistant</strong><br>Powered by Gemini AI</p>
+            </div>
+            <div class="stat-card">
+                <h2>🌐</h2>
+                <p><strong>Web Search</strong><br>Real-time information when needed</p>
+            </div>
+        </div>
+
+        <!-- Features -->
+        <div class="glass features fade-in delay-2">
+            <h2>✨ Enhanced Features</h2>
+            <ul>
+                <li>📚 <strong>Vector Search:</strong> Intelligent search through university documents</li>
+                <li>🌐 <strong>Web Search Fallback:</strong> Get answers even when documents don't contain information</li>
+                <li>📄 <strong>Enhanced PDF Viewer:</strong> Search within PDFs, highlight text, and navigate seamlessly</li>
+                <li>🖱️ <strong>Interactive Highlighting:</strong> Click and drag to select text, then generate follow-up questions</li>
+                <li>❓ <strong>Smart Follow-ups:</strong> Auto-generate intelligent questions from selected text</li>
+                <li>🎯 <strong>Precise Source Tracking:</strong> See exactly which text answered your question</li>
+                <li>💾 <strong>Export & Copy:</strong> Save answers and copy content easily</li>
+                <li>🔍 <strong>Advanced Search:</strong> Find specific content within any PDF document</li>
+            </ul>
+
+            <button class="btn pulse" id="enterAssistantBtn">
+                Enter CampusQuery Enhanced
+            </button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
