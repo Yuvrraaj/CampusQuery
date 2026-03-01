@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusQuery - Enhanced University Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="backdrop"></div>
+    
+    <div class="app-shell">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo">🎓</div>
+                <div class="brand-text">
+                    <h1>CampusQuery</h1>
+                    <p>Enhanced University Assistant</p>
+                </div>
+            </div>
+            
+            <div class="status-chip">
+                <div class="dot" id="statusDot"></div>
+                <div>
+                    <div id="statusText">Loading...</div>
+                    <div id="statusSubtext" class="muted">Initializing system...</div>
+                </div>
+            </div>
+            
+            <nav class="nav">
+                <button class="nav-item active" data-section="compose">
+                    <span>💬</span> Ask Question
+                </button>
+                <button class="nav-item" data-section="index">
+                    <span>📚</span> Document Index
+                </button>
+                <button class="nav-item" data-section="about">
+                    <span>ℹ️</span> About
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-outline w-100" id="rebuildButton">
+                    <span>🔄</span> Rebuild Index
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main">
+            <header class="header">
+                <div>
+                    <h2 id="sectionTitle">Ask Question</h2>
+                    <div class="subtle">Enhanced with web search fallback and PDF highlighting</div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-ghost" id="clearButton">
+                        <span>🧹</span> Clear
+                    </button>
+                    <button class="btn btn-soft" id="detailToggle" disabled>
+                        <span>📖</span> Details
+                    </button>
+                    <button class="btn btn-outline" id="exportButton" disabled>
+                        <span>💾</span> Export
+                    </button>
+                </div>
+            </header>
+            
+            <!-- Compose Section -->
+            <section id="section-compose" class="section active">
+                <div class="card glass">
+                    <div class="compose">
+                        <textarea 
+                            id="queryInput" 
+                            class="query" 
+                            placeholder="Ask about university programs, admissions, policies, facilities, etc. The system can search documents or the web for answers..."
+                            rows="4"
+                        ></textarea>
+                        
+                        <div class="compose-actions">
+                            <div class="chips" id="sampleQuestions">
+                                <div class="chip" data-query="What programs does the university offer?">Programs</div>
+                                <div class="chip" data-query="What are the admission requirements?">Admissions</div>
+                                <div class="chip" data-query="What is the fee structure?">Fees</div>
+                                <div class="chip" data-query="What scholarships are available?">Scholarships</div>
+                                <div class="chip" data-query="What are the campus facilities?">Facilities</div>
+                            </div>
+                            
+                            <button class="btn btn-primary ripple" id="askButton" disabled>
+                                <span>🔍</span> Get Answer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Results -->
+                <div id="resultsSection" class="card glass hidden">
+                    <div class="card-title">📝 Answer</div>
+                    <div id="answerContent" class="prose"></div>
+                    
+                    <div class="result-actions">
+                        <button class="btn btn-ghost" id="copyAnswerBtn">
+                            <span>📋</span> Copy Answer
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Detailed Explanation -->
+                <div id="detailCard" class="card glass hidden">
+                    <div class="card-title">📚 Detailed Explanation</div>
+                    <div id="detailContent" class="prose"></div>
+                </div>
+                
+                <!-- Referenced Documents -->
+                <div id="docsCard" class="card glass hidden">
+                    <div class="card-title">📄 Referenced Sources</div>
+                    <div class="muted">Double-click any document to view with enhanced features</div>
+                    <div id="documentsContainer" class="doc-grid"></div>
+                </div>
+            </section>
+            
+            <!-- Document Index Section -->
+            <section id="section-index" class="section">
+                <div class="card glass">
+                    <div class="card-title">📚 Document Index</div>
+                    <p class="muted">The index is automatically built from files in <code>/university_documents</code>. Use "Rebuild Index" to refresh.</p>
+                    
+                    <div id="indexStatus">
+                        <strong>Status:</strong> <span id="indexStatusText">Loading...</span>
+                    </div>
+                    
+                    <div id="documentStats" class="hidden">
+                        <p><strong>Documents processed:</strong> <span id="docCount">0</span></p>
+                        <p><strong>Web search:</strong> <span id="webSearchStatus">Enabled</span></p>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- About Section -->
+            <section id="section-about" class="section">
+                <div class="card glass">
+                    <div class="card-title">ℹ️ About CampusQuery</div>
+                    
+                    <div class="prose">
+                        <h3>Features</h3>
+                        <ul class="bullets">
+                            <li><strong>Vector search</strong> over your university PDFs/DOCs</li>
+                            <li><strong>Web search fallback</strong> when documents don't contain answers</li>
+                            <li><strong>Enhanced PDF viewer</strong> with search and highlighting</li>
+                            <li><strong>Interactive text selection</strong> for follow-up questions</li>
+                            <li><strong>Automatic question generation</strong> from highlighted text</li>
+                            <li><strong>Concise answers + deep explanations</strong></li>
+                            <li><strong>Export, copy, and keyboard shortcuts</strong></li>
+                        </ul>
+                        
+                        <h3>How to Use</h3>
+                        <ul class="bullets">
+                            <li>Add PDF, DOCX, or text files to <code>/university_documents</code></li>
+                            <li>Ask questions about university content</li>
+                            <li>Click documents to view with enhanced PDF features</li>
+                            <li>Highlight text in PDFs to generate follow-up questions</li>
+                            <li>Use web search when local documents don't have answers</li>
+                        </ul>
+                        
+                        <h3>Enhanced PDF Features</h3>
+                        <ul class="bullets">
+                            <li><strong>Search within PDFs</strong> - Find any text with navigation</li>
+                            <li><strong>Text highlighting</strong> - Click and drag to select text</li>
+                            <li><strong>Follow-up questions</strong> - Auto-generate questions from selections</li>
+                            <li><strong>Highlight management</strong> - Remove or clear all highlights</li>
+                            <li><strong>Source snippets</strong> - See exactly what text answered your question</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            
+            <footer class="footer">
+                <div>🎓 CampusQuery Enhanced - University Information Assistant with AI-powered search and PDF interaction</div>
+            </footer>
+        </main>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loader">
+            <div class="cube"></div>
+            <div class="cube"></div>
+            <div class="cube"></div>
+            <div class="cube"></div>
+        </div>
+        <div class="loading-text">Working...</div>
+    </div>
+    
+    <!-- Enhanced Document Modal -->
+    <div id="snippetModal" class="modal hidden">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="modalTitle">Document Source</div>
+                    <div class="modal-sub" id="modalSubtitle">Enhanced PDF viewer with highlighting</div>
+                </div>
+                <button class="btn btn-ghost" id="modalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="modalMessage" class="muted">Loading enhanced document viewer...</div>
+                <iframe id="pdfViewer" class="pdf-viewer hidden" src=""></iframe>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div id="toasts" class="toasts"></div>
+    
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
