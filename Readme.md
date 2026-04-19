@@ -1,101 +1,161 @@
-# CampusQuery AI – Intelligent Campus Q&A and Document Assistant
+CampusQuery AI – Intelligent Campus Q&A and Document Assistant
 
-CampusQuery AI is an **AI-powered Q&A and document intelligence platform** designed to provide **instant answers to campus-related queries** and enable **document-based question answering** with **source-referenced responses**.  
-Originally deployed at **VIT-AP University**, this platform is accessible to users **from anywhere** and integrates advanced **LLM-based search, embeddings, and OCR-powered document parsing** to make information retrieval seamless.
+CampusQuery AI is a backend-driven information retrieval system designed to answer campus-related queries and extract insights from uploaded documents. It combines OCR, embedding-based retrieval, and LLM-powered response generation to provide accurate, context-aware answers with source references.
 
----
+The system was built to solve the problem of fragmented campus information and inefficient document search by enabling users to query structured and unstructured data through a unified interface.
 
-##  Features
+System Overview
 
-- **Campus-Focused Q&A System:**  
-  Instantly answer any VIT-AP-related question using a fine-tuned **LLM** with embedded knowledge.
+The system follows a retrieval-augmented generation (RAG) pipeline:
 
-- **Highlight-to-Query Interaction:**  
-  Highlight any section of a document to **auto-generate follow-up questions** and dive deeper into context.
+User Query → Embedding → Vector Search → Context Retrieval → LLM Response Generation → Source Referencing
 
-- **Document Upload and Retrieval:**  
-  Upload PDFs, DOCX, TXT, or scanned documents and get **accurate, citation-based answers**.
+For documents:
 
-- **Source Referencing:**  
-  Every response includes references to the **relevant source content** for reliability.
+Document Upload → Parsing (PDF/DOCX/OCR) → Chunking → Embedding → Vector Storage → Query-based Retrieval
 
-- **Scalable Backend:**  
-  Designed with **FastAPI, LangChain, and vector databases** to ensure fast, scalable query resolution.
+Core Features
 
-- **User-Friendly Web Interface:**  
-  Accessible platform with a **responsive frontend** for students, faculty, and staff.
+Campus Q&A System
+The system answers campus-related queries using a retrieval-based approach instead of relying purely on a generative model. Queries are converted into embeddings and matched against stored knowledge to fetch relevant context before generating responses.
 
----
+Document-Based Question Answering
+Users can upload documents (PDF, DOCX, TXT, scanned images). The system extracts text, splits it into chunks, and stores embeddings for semantic retrieval.
 
-## 🛠 Tech Stack
+Highlight-to-Query Interaction
+Users can highlight a portion of a document, which is treated as a query input. The system generates context-aware follow-up questions or explanations based on the selected text.
 
-- **Languages & Frameworks:** Python, FastAPI, HTML/CSS, JavaScript
-- **AI/ML:** OpenAI GPT models, LangChain, Hugging Face Transformers
-- **Document Processing:** PyMuPDF, Tesseract OCR, Pandas
-- **Vector Search:** FAISS / Pinecone
-- **Frontend:** React.js (or Streamlit for rapid prototyping)
-- **Deployment:** Docker, Render/Heroku/AWS (optional)
+Source Referencing
+Each response includes references to the exact document chunks used during retrieval, ensuring transparency and trust in the output.
 
----
+Scalable Backend
+The backend is designed using FastAPI with modular components for ingestion, retrieval, and response generation, allowing horizontal scaling.
 
-🔧 Installation & Setup
-1. Clone the Repository, then
-cd CampusQuery-AI
+How It Works
+Document Ingestion
+PDF and DOCX are parsed using PyMuPDF or similar libraries
+Scanned documents are processed using Tesseract OCR
+Extracted text is cleaned and normalized
+Text Chunking
+Large documents are split into smaller chunks (typically 300–500 tokens)
+Overlapping chunks are used to preserve context
+Embedding Generation
+Each chunk is converted into a vector representation using embedding models
+These vectors capture semantic meaning instead of keyword matching
+Vector Storage
+Embeddings are stored in a vector database (FAISS or Pinecone)
+Enables fast similarity search
+Query Processing
+User query is converted into an embedding
+Top-k similar chunks are retrieved from the vector database
+Response Generation
+Retrieved context is passed to an LLM
+LLM generates a grounded response based only on retrieved content
+Source Attribution
+The system attaches references to the original chunks used in answering
+Tech Stack
 
-2. Create Virtual Environment
+Backend
+Python
+FastAPI
+
+AI/ML
+LLM APIs (Gemini / OpenAI)
+LangChain (for chaining retrieval and generation)
+Hugging Face (optional for embeddings or models)
+
+Document Processing
+PyMuPDF
+Tesseract OCR
+Pandas (for preprocessing where required)
+
+Vector Database
+FAISS (local setup)
+Pinecone (cloud option)
+
+Frontend
+React.js or Streamlit (depending on deployment version)
+
+Deployment
+Docker (optional)
+Render / AWS / local server
+
+Project Structure (Typical)
+
+backend/
+
+app.py (FastAPI entry point)
+routes/ (API endpoints)
+services/
+ingestion.py
+retrieval.py
+llm_pipeline.py
+utils/
+text_processing.py
+ocr.py
+
+data/
+
+documents
+embeddings
+
+frontend/
+
+React or Streamlit app
+Setup Instructions
+Clone the repository
+Create a virtual environment
 python -m venv venv
-source venv/bin/activate   # Linux/Mac
-venv\Scripts\activate      # Windows
-
-3. Install Dependencies
+source venv/bin/activate (Linux/Mac)
+venv\Scripts\activate (Windows)
+Install dependencies
 pip install -r requirements.txt
+Set environment variables in .env
+GEMINI_API_KEY=your_key
+Run the backend
+python app.py
+Access the application
+http://localhost:5000
+Usage
+Ask campus-related queries directly through the API or UI
+Upload documents and query them
+Highlight text (UI feature) to trigger contextual queries
+Receive responses with source references
+Key Design Decisions
 
-4. Set Up Environment Variables
+Retrieval-Augmented Generation
+Instead of relying purely on LLM knowledge, the system retrieves relevant context first, ensuring factual accuracy and reducing hallucinations.
 
-Create a .env file with your keys:
+Chunk-Based Processing
+Splitting documents into chunks improves retrieval precision and avoids token limits in LLMs.
 
-GEMINI_API_KEY=your_gemini_key
+Embedding-Based Search
+Semantic similarity search allows better matching than keyword-based approaches.
 
-5. Run app.py file.
+OCR Integration
+Supports scanned documents, making the system usable for real-world unstructured data.
 
+Performance Considerations
+Query latency optimized using vector indexing
+Batch embedding used during ingestion
+Caching applied for repeated queries
+Chunk size tuned for optimal retrieval accuracy
+Limitations
+OCR accuracy depends on input image quality
+Embedding quality affects retrieval relevance
+Requires proper chunking strategy for best performance
+Future Improvements
+Fine-tuned domain-specific embedding models
+Better OCR preprocessing for noisy scans
+Multi-language support
+Role-based access for campus stakeholders
+Contribution
 
-Access the app at http://localhost:5000.
+Fork the repository
+Create a new branch
+Commit changes
+Push and create a pull request
 
-📘 Usage
+License
 
-Ask campus-related questions directly through the chatbot.
-
-Upload any supported document and ask targeted questions.
-
-Highlight document text to auto-generate context-aware follow-up questions.
-
-Get answers with citations for trust and clarity.
-
-🔥 Key Highlights
-
-Supports multiple document formats (PDF, DOCX, TXT, Scanned Images)
-
-Fast, citation-driven responses for document queries
-
-Scalable architecture using FastAPI and vector search
-
-Tested with 40+ students and faculty at VIT-AP
-
-🤝 Contribution
-
-Contributions are welcome! Here’s how to get started:
-
-Fork this repository
-
-Create a new branch: git checkout -b feature-name
-
-Commit changes: git commit -m 'Added new feature'
-
-Push to the branch: git push origin feature-name
-
-Create a Pull Request
-
-🛡️ License
-
-This project is licensed under the MIT License. See LICENSE for details.
-
+MIT License
