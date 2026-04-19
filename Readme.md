@@ -1,6 +1,6 @@
 # CampusQuery AI – Intelligent Campus Q&A and Document Assistant
 
-CampusQuery AI is a backend-driven information retrieval system designed to answer campus-related queries and extract insights from uploaded documents. It combines OCR, embedding-based retrieval, and LLM-powered response generation to provide accurate, context-aware answers with source references.
+CampusQuery AI is a backend-driven information retrieval system designed to answer campus-related queries and extract insights from uploaded documents. It combines embedding-based retrieval and LLM-powered response generation to provide accurate, context-aware answers with source references.
 
 The system solves the problem of fragmented campus information and inefficient document search by enabling users to query structured and unstructured data through a unified interface.
 
@@ -54,7 +54,7 @@ Built using FastAPI with modular services for ingestion, retrieval, and response
 - Captures semantic meaning instead of keywords
 
 ### 4. Vector Storage
-- Stored in FAISS (local) or Pinecone (cloud)
+- Stored in local
 - Enables fast similarity search
 
 ### 5. Query Processing
@@ -77,9 +77,8 @@ Built using FastAPI with modular services for ingestion, retrieval, and response
 - FastAPI
 
 ### AI/ML
-- LLM APIs (Gemini / OpenAI)
+- LLM APIs (Gemini)
 - LangChain
-- Hugging Face (optional)
 
 ### Document Processing
 - PyMuPDF
@@ -87,15 +86,11 @@ Built using FastAPI with modular services for ingestion, retrieval, and response
 - Pandas
 
 ### Vector Database
-- FAISS
-- Pinecone
+- CHROMA
 
 ### Frontend
-- React.js / Streamlit
+- Flask
 
-### Deployment
-- Docker (optional)
-- Render / AWS / Local
 
 ---
 
@@ -116,15 +111,15 @@ data/
 │── embeddings/
 
 frontend/
-│── (React or Streamlit app)
+│── app.py
 
 ---
 
 ## Setup Instructions
 
 ### 1. Clone Repository
-git clone <repo-url>
-cd CampusQuery-AI
+git clone https://github.com/Yuvrraaj/CampusQuery.git
+cd CampusQuery
 
 ### 2. Create Virtual Environment
 
