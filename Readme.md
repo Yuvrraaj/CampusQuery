@@ -8,112 +8,175 @@
 
 Campus information is fragmented. Exam schedules live in one PDF, fee structures in another, hostel rules somewhere else entirely. Students either waste time digging through documents or get wrong answers from an LLM that confidently makes things up.
 
-CampusQuery solves both problems: a RAG pipeline that retrieves actual campus documents before generating any response, so answers are grounded in what's really there — with the source chunk cited.
+CampusQuery solves both: a RAG pipeline that retrieves actual campus documents before generating any response, so every answer is grounded in what's really there — with the exact source chunk cited and openable.
 
 ---
 
 ## What This System Does
 
-A full Retrieval-Augmented Generation (RAG) system built on FastAPI and ChromaDB. You ingest campus documents once. After that, any query — typed or highlighted — gets answered by first retrieving the most relevant document chunks via vector similarity search, then passing that context to an LLM for response generation. If no relevant context is found in the vector store, it falls back to web search rather than hallucinating.
+A full Retrieval-Augmented Generation (RAG) system with two interfaces — a **Flask web app** and a **Tkinter desktop GUI**. Drop university documents (PDFs, DOCX, TXT) into the documents folder. The system chunks them, embeds them locally using `sentence-transformers`, stores vectors in ChromaDB, and serves semantic search over them on every query. If no relevant chunk is found, it falls back to web search rather than hallucinating.
 
 ```
-User Query
-    │
-    ▼
-Query Embedding  ──▶  ChromaDB Vector Search  ──▶  Top-k Chunks Retrieved
-                                                          │
-                              Web Search Fallback ◀── No relevant context?
-                                                          │
-                                                          ▼
-                                                  LLM (Gemini) + Context
-                                                          │
-                                                          ▼
-                                              Response + Source References
+University Documents (PDF / DOCX / TXT)
+           │
+           ▼
+   Parse  →  Chunk  →  Embed (local, all-MiniLM-L6-v2)  →  ChromaDB
+                                                                │
+User Query  ──▶  Query Embedding  ──▶  Top-k Vector Search ────┘
+                                              │
+                           No match? ──▶  Web Search Fallback
+                                              │
+                                              ▼
+                                    Gemini LLM + Retrieved Context
+                                              │
+                                              ▼
+                           Answer + Key Points + Source References
 ```
 
 ---
 
 ## How It Works
 
-### Stage 1 — Document Ingestion
+### Stage 1 — Document Loading and Parsing
 
-Documents are parsed depending on type:
-- **PDFs and DOCX** → extracted via PyMuPDF
-- **Scanned/image-based documents** → run through Tesseract OCR before text extraction
+`UniversityDocumentProcessor` handles all document types:
+- **PDFs** → parsed via both PyPDF2 and PyMuPDF (fitz). PyMuPDF is used when PyPDF2 extraction is incomplete or produces garbled output
+- **DOCX** → extracted via python-docx
+- **TXT** → read directly
 
-Raw extracted text is cleaned and normalised before chunking — whitespace artifacts, header/footer repetitions, and encoding noise are stripped at this stage. Dirty input produces dirty embeddings; this step is not optional.
-
----
-
-### Stage 2 — Chunking Strategy
-
-Documents are split into overlapping chunks of 300–500 tokens. The overlap is deliberate: if an answer spans a chunk boundary, a purely non-overlapping split would lose it. Overlapping chunks ensure continuity across splits so the retrieval step doesn't miss context that straddles boundaries.
-
-Each chunk stores:
-- Source document name
-- Page / section reference
-- Raw text
+All extracted text is cleaned and normalised before chunking.
 
 ---
 
-### Stage 3 — Embedding and Vector Storage
+### Stage 2 — Chunking
 
-Each chunk is converted into a dense vector embedding that captures semantic meaning rather than surface keywords. This means a query like *"when are fees due"* retrieves chunks containing *"payment deadline"* or *"last date of submission"* — exact word match is not required.
+Documents are split using LangChain's `RecursiveCharacterTextSplitter`:
 
-Embeddings are stored in **ChromaDB**, a local persistent vector database. ChromaDB enables fast cosine similarity search over the full document corpus without any external API call at retrieval time.
+```
+CHUNK_SIZE    = 1000 tokens  (configurable)
+CHUNK_OVERLAP = 200 tokens   (configurable)
+```
 
----
-
-### Stage 4 — Query Processing and Retrieval
-
-When a user submits a query:
-1. The query is embedded using the same embedding model used during ingestion — this is important, the vector spaces must match
-2. A top-k similarity search runs against ChromaDB
-3. The k most relevant chunks are returned with their similarity scores
-
-If no chunk crosses the relevance threshold, the system routes to **web search fallback** rather than generating a response from LLM memory alone. This is the core anti-hallucination mechanism.
+Overlap is deliberate — answers that span a chunk boundary are preserved rather than silently lost. Each chunk is stored as a LangChain `Document` with source metadata.
 
 ---
 
-### Stage 5 — Highlight-to-Query
+### Stage 3 — Local Embedding (No API Quotas)
 
-Users can highlight any passage in a rendered document and trigger a contextual query from that selection. The highlighted text is sent as an enriched query prefix, biasing retrieval toward that document region. This is particularly useful for drilling into specific clauses in policy documents or fee structures without re-reading the whole file.
+Embeddings are generated using **`sentence-transformers/all-MiniLM-L6-v2`** running entirely locally — no Gemini embedding API, no quotas, no rate limits. This was a deliberate architectural decision: embedding APIs throttle under load; local inference doesn't.
+
+Embedding dimension: **384**
+
+Embeddings and the vector index are cached to disk on first run:
+```
+university_vector_store/
+├── local_embeddings_cache.pkl   # chunk → embedding cache
+└── vector_index.pkl             # FAISS/Chroma index
+```
+
+On subsequent runs, the cache is loaded directly — startup is near-instant.
 
 ---
 
-### Stage 6 — Response Generation
+### Stage 4 — Vector Storage via ChromaDB
 
-Retrieved chunks are assembled into a structured context window and passed to Gemini along with the user query. The LLM generates a response that is grounded in the retrieved text — it cannot invent details not present in the chunks.
-
-Every response includes:
-- The generated answer
-- Source references: document name, chunk index, and the exact passage used
-
-This makes every answer auditable. If the answer is wrong, you can trace exactly which chunk produced it.
+Embedded chunks are stored in a local persistent **ChromaDB** instance (`./university_vector_store` and `./chroma_db`). ChromaDB enables fast cosine similarity search over the full document corpus without any external dependency at query time.
 
 ---
 
-### Stage 7 — API Layer
+### Stage 5 — Query Processing
 
-All functionality is exposed through a **FastAPI** backend with modular service separation:
+`UniversityQueryProcessor` handles every incoming query:
 
-- `ingestion.py` — document parsing, chunking, embedding, storage
-- `retrieval.py` — query embedding, vector search, fallback routing
-- `llm_pipeline.py` — context assembly, Gemini API call, response formatting
+1. The query is embedded using the same local `all-MiniLM-L6-v2` model
+2. Top-k most similar chunks are retrieved from ChromaDB by cosine similarity
+3. Each retrieved chunk carries a relevance score — fuzzy membership functions (`very_low`, `low`, `medium`, `high`, `very_high`) classify relevance before the context is assembled
+4. If no chunk exceeds the relevance threshold → **web search fallback** is triggered. The answer is still generated, but the source is marked as a web result, not a document chunk
 
-The API is stateless at the request level — each query is self-contained. Session context (for multi-turn conversations) is managed client-side and passed back on each request.
+---
+
+### Stage 6 — Response Generation via Gemini
+
+Retrieved chunks are assembled into a structured context window and passed to **Gemini** (Google Generative AI) for response generation. The LLM cannot invent details absent from the retrieved context.
+
+Every response returns:
+- `answer` — concise direct answer
+- `detailed_answer` — comprehensive explanation (toggleable in both UIs)
+- `key_points` — bullet summary
+- `justification` — why this answer was retrieved
+- `applicable_sections` — relevant document sections
+- `document_references` — source names and chunk indices
+- `sources` — list of source objects with relevance scores, file paths, and content snippets
+
+---
+
+### Stage 7 — Highlight-to-Query (Follow-up Generation)
+
+Both interfaces support **highlight-to-query**: select any text in a rendered document or response, and the system generates a contextual follow-up question from that selection. The highlighted text is sent as a query prefix, biasing retrieval toward that document region.
+
+In the web interface: `/api/followup` endpoint accepts `selected_text`, `context`, and `document_name`.
+In the desktop GUI: text selection in the PDF viewer triggers the same flow through `EnhancedPDFViewer`.
+
+---
+
+## Two Interfaces
+
+### Flask Web App (`app.py`)
+
+A web server exposing the full pipeline over HTTP with a dashboard UI.
+
+Key routes:
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/` | GET | Main dashboard |
+| `/assistant` | GET | Chat interface |
+| `/api/query` | POST | Submit a query |
+| `/api/followup` | POST | Generate follow-up from selected text |
+| `/api/status` | GET | System ready status + document count |
+| `/api/export` | GET | Export last result as JSON |
+| `/api/cache/status` | GET | Embedding cache size and state |
+| `/api/cache/clear` | POST | Wipe and rebuild vector store |
+| `/api/system/info` | GET | Platform, memory, embedding model info |
+| `/api/soft-computing/stats` | GET | Query metrics, fuzzy scoring stats |
+| `/docs/<filename>` | GET | Serve university PDFs inline (CORS-safe) |
+| `/health` | GET | Health check |
+
+System initialisation runs in a **background thread** on startup — the web server is available immediately while documents are being indexed. `/api/status` reports readiness state so the frontend can gate queries until the system is ready.
+
+---
+
+### Tkinter Desktop GUI (`uni.py`)
+
+A full desktop application for offline or institutional use. Built on Tkinter with a university-themed colour scheme.
+
+Features:
+- **Query input panel** with real-time status bar
+- **Answer display** with formatted bold/normal text rendering
+- **Detailed explanation toggle** — expandable comprehensive analysis panel
+- **Source documents tree** — lists all retrieved sources with relevance scores and file type icons (PDF / Word / Web)
+- **Enhanced PDF viewer** (`EnhancedPDFViewer`) — opens PDFs inline with:
+  - Full text search with prev/next navigation
+  - Auto-highlight of the retrieved snippet on open
+  - User highlight creation via text selection
+  - Highlight-to-query: select text → generate follow-up question
+  - Zoom controls and page navigation
+- **Export** — save full answer + sources + justification to `.txt`
+- **Web search results** displayed inline alongside document results
 
 ---
 
 ## Key Design Decisions
 
-**Why RAG over pure LLM?** Campus documents change — fee structures, exam schedules, regulations. An LLM's training data is stale by definition. RAG retrieves from the live document corpus on every query.
+**Local embeddings over API embeddings** — `all-MiniLM-L6-v2` runs on CPU with no quota. Gemini embedding API would throttle at scale; local inference doesn't. The tradeoff is a slightly lower-quality embedding model, but for campus document retrieval the difference is negligible.
 
-**Why ChromaDB?** Local, persistent, no external API dependency for retrieval. Fast enough for a single-institution corpus. Swappable for Pinecone or Weaviate if scale demands it.
+**Disk-cached embeddings** — First run embeds and caches everything. Subsequent runs skip embedding entirely. For institutions re-deploying without document changes, this makes startup near-instant.
 
-**Why web search fallback instead of refusing?** A refusal is useless. If the document corpus doesn't have the answer, a web search often will. The fallback is clearly indicated in the response so users know the source changed.
+**Web search fallback instead of refusal** — A refusal is useless. If the document corpus doesn't have the answer, web search often will. The fallback source is explicitly flagged in the response so users know where the answer came from.
 
-**Why overlapping chunks?** Information that spans a paragraph boundary gets lost with hard splits. Overlap is the cheapest way to preserve cross-boundary context without more complex hierarchical chunking.
+**Fuzzy relevance scoring** — Retrieved chunks are scored not just by raw cosine similarity but through fuzzy membership functions that produce human-readable relevance tiers. This feeds into the `justification` field so users understand *why* a source was returned.
+
+**Two interfaces from one core** — `uni.py` contains `UniversityDocumentProcessor` and `UniversityQueryProcessor` which are imported by both `app.py` (web) and the `main()` Tkinter entrypoint (desktop). The pipeline logic is written once.
 
 ---
 
@@ -121,34 +184,40 @@ The API is stateless at the request level — each query is self-contained. Sess
 
 | Layer | Tools |
 |-------|-------|
-| Backend API | FastAPI, Python |
-| LLM | Gemini (Google) |
+| Web Backend | Flask, Flask-CORS |
+| Desktop GUI | Tkinter |
+| LLM | Gemini (Google Generative AI) |
+| Embeddings | sentence-transformers `all-MiniLM-L6-v2` (local) |
 | Orchestration | LangChain |
 | Vector Database | ChromaDB |
-| Document Parsing | PyMuPDF, python-docx |
-| OCR | Tesseract |
-| Frontend | Flask, HTML/CSS/JS |
+| Document Parsing | PyMuPDF (fitz), PyPDF2, python-docx |
+| Language | Python 3.x |
 
 ---
 
 ## Project Structure
 
 ```
-├── app.py                      # FastAPI application entry point
-├── university.py               # Campus Q&A pipeline
-├── insurance_query_system.py   # Domain-specific query variant
-├── services/
-│   ├── ingestion.py            # Parse → chunk → embed → store
-│   ├── retrieval.py            # Query embed → vector search → fallback
-│   └── llm_pipeline.py         # Context assembly → Gemini → response
-├── utils/
-│   ├── text_processing.py      # Cleaning, normalisation, chunking
-│   └── ocr.py                  # Tesseract wrapper
-├── chroma_db/                  # Persisted vector store
-├── university_documents/       # Source document corpus
-├── templates/                  # Frontend HTML
-├── static/                     # CSS, JS
-└── requirements.txt
+├── app.py                        # Flask web server + all API routes
+├── uni.py                        # Core pipeline: processor, query engine, desktop GUI
+├── university.py                 # Alternate/legacy pipeline variant
+├── insurance_query_system.py     # Domain-specific RAG variant (insurance docs)
+├── a.py / app2.py                # Experimental builds
+├── config.py                     # API keys and configuration constants
+├── requirements.txt
+│
+├── university_documents/         # Drop your PDFs/DOCX/TXT here
+├── university_vector_store/      # Auto-generated: embedding cache + vector index
+│   ├── local_embeddings_cache.pkl
+│   └── vector_index.pkl
+├── chroma_db/                    # ChromaDB persistent store
+│
+├── templates/                    # Flask HTML templates
+│   ├── dashboard.html
+│   └── index.html
+└── static/                       # CSS, JS assets
+    ├── css/
+    └── js/
 ```
 
 ---
@@ -165,27 +234,74 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Create a `.env` file:
+Create `config.py`:
 
+```python
+GEMINI_API_KEY = "your_gemini_api_key_here"
+API_RATE_LIMIT = 10
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 5
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+MAX_CONTEXT_DOCS = 5
+CACHE_DIR = "./api_cache"
 ```
-GEMINI_API_KEY=your_api_key_here
+
+Add university documents:
+```
+university_documents/
+├── academic_calendar.pdf
+├── fee_structure.pdf
+├── hostel_rules.docx
+└── ...
 ```
 
-Run:
-
+**Run web app:**
 ```bash
 python app.py
+# → http://localhost:5000
 ```
 
-Access at `http://localhost:5000`
+**Run desktop GUI:**
+```bash
+python uni.py
+```
+
+First run embeds all documents and caches to disk. Subsequent runs load from cache — startup is fast.
+
+---
+
+## API Reference
+
+**POST `/api/query`**
+```json
+{ "query": "What is the last date to pay semester fees?" }
+```
+Returns: `answer`, `detailed_answer`, `key_points`, `justification`, `sources[]`, `document_references[]`
+
+**POST `/api/followup`**
+```json
+{
+  "selected_text": "Students must pay fees before 15th January",
+  "context": "Fee Structure document",
+  "document_name": "fee_structure.pdf"
+}
+```
+Returns: generated follow-up question string
+
+**GET `/api/status`** — System readiness, document count, embedding type
+
+**GET `/api/system/info`** — Platform, memory, embedding model, document list
+
+**GET `/health`** — Lightweight health check
 
 ---
 
 ## Limitations
 
-- OCR accuracy is bounded by scan quality — low-resolution or skewed scans produce degraded chunks that hurt retrieval
-- Retrieval quality is directly tied to embedding model quality — a domain-specific embedding model would outperform a general-purpose one on campus-specific terminology
-- Chunk size is fixed; adaptive chunking based on document structure (headings, sections) would improve precision for highly structured documents like rulebooks
+- OCR for scanned PDFs is not currently implemented — only text-layer PDFs are parsed. Scanned documents require a Tesseract preprocessing step before ingestion
+- Embedding quality is bounded by `all-MiniLM-L6-v2` — a general-purpose model. A domain-fine-tuned embedding model would improve retrieval precision on campus-specific terminology
+- Chunk size is fixed globally — adaptive chunking based on document structure (headings, tables) would improve precision for heavily structured documents like rulebooks or schedules
 
 ---
 
